@@ -214,23 +214,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterWorkspace, onOp
       </section>
 
       {/* 2. REGIONAL DEVELOPMENT OVERVIEW */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 py-10 border-y border-slate-200 dark:border-slate-800">
-          <div className="lg:col-span-5">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 py-10 border-y border-slate-200 dark:border-slate-800 items-center">
+          <div className="lg:col-span-5 space-y-4">
             <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
               01. Regional Development Architecture
             </p>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-2 text-balance">
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 text-balance">
               {t.overviewHeading}
             </h2>
-          </div>
-          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            <p>
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
               Instead of hardcoding municipal workflows to a single city, every district configuration stores local departments, supported languages, and regional datasets in PostgreSQL—allowing seamless expansion from Indore across Madhya Pradesh and other Indian states.
             </p>
-            <p>
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
               Ten role-based access levels—from Farmers, Citizens, and MSME Owners to Department Officers and Super Administrators—enforce permissions on the server while safeguarding personal data under India&apos;s DPDP Act, 2023.
             </p>
+          </div>
+          <div className="lg:col-span-7">
+            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 aspect-video">
+              <ResilientImage
+                src="/src/assets/images/indore_regional_overview_1795702770036.jpg"
+                alt="Panoramic view of Indore Rajwada heritage square connected to green urban walkways and metro transit"
+                className="w-full h-full object-cover"
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -285,29 +292,33 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterWorkspace, onOp
             </div>
           </article>
 
-          {/* Card 2: Smart Civic Governance */}
-          <article className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-between space-y-5">
-            <div className="space-y-3">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                02 · Smart Civic Governance
+          {/* Card 2: Smart Civic Governance (with HD Command Center Photo) */}
+          <article className="rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col">
+            <ResilientImage
+              src="/src/assets/images/sector_civic_governance_1795702769404.jpg"
+              alt="Indore Smart City Civic Facilitation and Integrated Command Center helping a citizen"
+              className="w-full h-48 object-cover"
+            />
+            <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+              <div className="space-y-2">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  02 · Smart Civic Governance
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+                  Transparent Civic Issue Tracking
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Submit ward complaints with photos, get unique tracking IDs, and track verified department resolutions without exposing PII.
+                </p>
               </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                Transparent Civic Issue Tracking
-              </h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                Submit ward-level complaints with photo attachments, receive unique tracking IDs, monitor department resolution timelines, and submit verified citizen ratings without exposing private PII.
-              </p>
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-600 dark:text-slate-400">
-                Submitted → Verified → Assigned → In Progress → Resolved → Citizen Feedback
-              </div>
+              <button
+                type="button"
+                onClick={() => onEnterWorkspace('civic')}
+                className="self-start px-4 py-2 rounded-lg bg-slate-900 dark:bg-sky-600 text-white text-xs font-semibold hover:bg-slate-800 dark:hover:bg-sky-500 transition-colors"
+              >
+                Launch Civic Portal
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => onEnterWorkspace('civic')}
-              className="self-start px-4 py-2 rounded-lg bg-slate-900 dark:bg-sky-600 text-white text-xs font-semibold hover:bg-slate-800 dark:hover:bg-sky-500 transition-colors"
-            >
-              Launch Civic Portal
-            </button>
           </article>
 
           {/* Card 3: MSME Digitization */}
@@ -547,6 +558,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterWorkspace, onOp
           <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
             Built with minimal data collection, explicit user consent, right-to-correction, and account erasure workflows aligned with the Digital Personal Data Protection Act, 2023. All API documentation is published at <span className="font-mono text-xs">/api/openapi.json</span>.
           </p>
+          <ul className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
+            <li>• Server-enforced 10-role RBAC &amp; Firebase ID token verification</li>
+            <li>• Magic-byte image upload validation, SSRF URL guards &amp; Origin CSRF protection</li>
+            <li>• Salted SHA-256 IP anonymization &amp; prompt-injection filtering on AI endpoints</li>
+          </ul>
         </div>
 
         <form

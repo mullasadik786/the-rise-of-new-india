@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { CloudSun, Leaf, Sprout, Upload } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { ResilientImage } from '../ResilientImage';
 
 interface Advisory {
   id: number;
@@ -49,6 +50,8 @@ export const SmartAgriTech: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi }) 
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [plannerBusy, setPlannerBusy] = useState(false);
+  const [cropPlan, setCropPlan] = useState<{ answer: string; actionItems: string[]; disclaimer: string } | null>(null);
 
   // Farmer Profile Form
   const [village, setVillage] = useState('Depalpur Tehsil, Indore');
@@ -218,30 +221,90 @@ export const SmartAgriTech: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi }) 
     }
   };
 
+  const handleGenerateCropPlan = async () => {
+    setPlannerBusy(true);
+    setErrorMessage(null);
+    try {
+      const prompt = `Generate a practical crop and irrigation plan for ${landArea} acres in ${village} (${selectedRegion}). Soil type: ${soilType}, N=${soilN}, P=${soilP}, K=${soilK}, pH=${soilPh}, Irrigation: ${irrigation}. Include water conservation guidance and safe fertilizer practices.`;
+      const res = await authFetch('/api/ai/assistant', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: prompt,
+          sector: 'AgriTech',
+          regionCode: selectedRegion,
+          language,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not generate crop plan.');
+      setCropPlan(data.reply);
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Crop planner failed.');
+    } finally {
+      setPlannerBusy(false);
+    }
+  };
+
   const projectedNetProfit = Number(revenueInr || 0) - Number(expensesInr || 0);
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-        <div>
-          <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-            Module 01 · Smart AgriTech Intelligence
-          </p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1">
-            Soil Health, Crop Economics &amp; AI Disease Screening
-          </h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-2xl">
-            Verified meteorological data and KVK reference guidance are clearly separated from AI-generated crop recommendations.
-          </p>
+      <div className="rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 grid grid-cols-1 lg:grid-cols-12">
+        <div className="lg:col-span-7 p-6 flex flex-col justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+              Module 01 · Smart AgriTech Intelligence
+            </p>
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1">
+              Soil Health, Crop Economics &amp; AI Disease Screening
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 max-w-2xl">
+              Verified meteorological data and KVK reference guidance are clearly separated from AI-generated crop and irrigation recommendations.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              disabled={plannerBusy}
+              onClick={handleGenerateCropPlan}
+              className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium disabled:opacity-50 whitespace-nowrap shrink-0 transition-colors"
+            >
+              {plannerBusy ? 'Planning...' : 'Generate AI Crop & Water Plan'}
+            </button>
+            <button
+              type="button"
+              onClick={onOpenAi}
+              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-sm font-medium whitespace-nowrap shrink-0"
+            >
+              Open Multilingual AI
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={onOpenAi}
-          className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium whitespace-nowrap shrink-0 transition-colors"
-        >
-          Ask AgriTech AI
-        </button>
+        <div className="lg:col-span-5 h-52 lg:h-auto">
+          <ResilientImage
+            src="/src/assets/images/agritech_soil_lab_1795702770536.jpg"
+            alt="Agronomist and farmer inspecting black cotton soil sample and NPK moisture meter in Madhya Pradesh"
+            className="w-full h-full object-cover"
+          />
+        </div>
       </div>
+
+      {cropPlan && (
+        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 text-sm">
+          <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+            AI-Generated Crop &amp; Water Conservation Recommendation
+          </div>
+          <p className="text-slate-700 dark:text-slate-200 leading-relaxed">{cropPlan.answer}</p>
+          {cropPlan.actionItems?.length > 0 && (
+            <ul className="list-disc pl-5 text-xs text-slate-600 dark:text-slate-300 space-y-1">
+              {cropPlan.actionItems.map((item, idx) => (
+                <li key={idx}>{item}</li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-amber-800 dark:text-amber-400 pt-1">{cropPlan.disclaimer}</p>
+        </div>
+      )}
 
       {statusMessage && (
         <div className="p-3.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-sm text-emerald-900 dark:text-emerald-200">
@@ -293,6 +356,19 @@ export const SmartAgriTech: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi }) 
                     {weather.current.wind_speed_10m} km/h
                   </div>
                 </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-200 dark:border-slate-800 text-xs">
+                {(weather.daily?.time || []).slice(0, 3).map((day, idx) => (
+                  <div key={day} className="space-y-0.5">
+                    <div className="text-slate-500 dark:text-slate-400 truncate">{day}</div>
+                    <div className="font-mono tabular-nums font-medium text-slate-800 dark:text-slate-200">
+                      {weather.daily.temperature_2m_min[idx]}°–{weather.daily.temperature_2m_max[idx]}°C
+                    </div>
+                    <div className="text-slate-500 tabular-nums">
+                      Rain {weather.daily.precipitation_sum[idx]}mm
+                    </div>
+                  </div>
+                ))}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 pt-3">
                 Source: {weather.source} · {weather.location}

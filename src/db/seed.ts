@@ -12,6 +12,7 @@ let seededOnce = false;
 
 export async function ensureSeedData() {
   if (seededOnce) return;
+  if (process.env.VITEST === 'true' && !process.env.SQL_HOST) return;
   try {
     const [{ value: regionCount }] = await db.select({ value: count() }).from(regions);
     if (regionCount === 0) {

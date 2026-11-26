@@ -386,6 +386,17 @@ export const SkillEmployment: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi }
             </label>
 
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+              Portfolio / GitHub URL (HTTPS only, optional)
+              <input
+                type="url"
+                value={portfolioUrl}
+                onChange={(e) => setPortfolioUrl(e.target.value)}
+                placeholder="https://github.com/your-handle"
+                className="mt-1 w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950"
+              />
+            </label>
+
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
               Project Portfolio &amp; Experience Summary
               <textarea
                 rows={2}
@@ -421,12 +432,42 @@ export const SkillEmployment: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi }
               </label>
             </div>
 
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-indigo-600 text-white text-sm font-medium"
-            >
-              Save Profile &amp; Score Assessment
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-indigo-600 text-white text-sm font-medium"
+              >
+                Save Profile &amp; Score Assessment
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const content = [
+                    `THE RISE OF NEW INDIA — LEARNER RESUME SUMMARY`,
+                    `Name: ${dbUser?.displayName || 'Regional Learner'}`,
+                    `Region: ${selectedRegion}`,
+                    `Headline: ${headline}`,
+                    `Education: ${education}`,
+                    `Skills: ${skillsText}`,
+                    `Portfolio: ${portfolioUrl || 'Not provided'}`,
+                    `Skill Assessment Score: ${assessmentScore}/100`,
+                    ``,
+                    `Experience & Projects:`,
+                    experienceSummary,
+                  ].join('\n');
+                  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `resume-${selectedRegion.toLowerCase()}.txt`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Download Resume Summary
+              </button>
+            </div>
           </form>
 
           {canPostOpportunities ? (

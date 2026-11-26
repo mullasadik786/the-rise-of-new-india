@@ -36,6 +36,12 @@ import {
   generateMsmeContentWithGemini,
   generateRegionalAssistantReply,
 } from '../lib/gemini.ts';
+import {
+  hashClientIp,
+  isSafeHttpUrl,
+  stripDangerousMarkup,
+  validateBase64Image,
+} from '../lib/security.ts';
 import { AuthRequest, optionalAuth, requireAuth, requireRole } from '../middleware/auth.ts';
 
 export const apiRouter = Router();
@@ -56,26 +62,8 @@ const writeLimiter = rateLimit({
   message: { error: 'Too many write requests. Please slow down.' },
 });
 
-// Ensure regional seed data exists on first API call (lazy, never at startup)
-apiRouter.use(async (_req, _res, next) => {
-  await ensureSeedData();
-  next();
-});
-
-function handleRouteError(res: Response, error: unknown, fallbackMessage: string) {
-  console.error(fallbackMessage, error);
-  const message =
-    error instanceof z.ZodError
-      ? error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')
-      : error instanceof Error && error.message.includes('AI safety')
-        ? error.message
-        : fallbackMessage;
-  const status = error instanceof z.ZodError ? 400 : 500;
-  return res.status(status).json({ error: message });
-}
-
 // ============================================================================
-// 0. HEALTH & OPENAPI DOCUMENTATION
+// 0. HEALTH & OPENAPI DOCUMENTATION (never gated on DB seed)
 // ============================================================================
 apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'the-rise-of-new-india', timestamp: new Date().toISOString() });
@@ -106,6 +94,24 @@ apiRouter.get('/openapi.json', (_req, res) => {
     },
   });
 });
+
+// Ensure regional seed data exists on first data API call (lazy, never at startup)
+apiRouter.use(async (_req, _res, next) => {
+  await ensureSeedData();
+  next();
+});
+
+function handleRouteError(res: Response, error: unknown, fallbackMessage: string) {
+  console.error(fallbackMessage, error);
+  const message =
+    error instanceof z.ZodError
+      ? error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')
+      : error instanceof Error && error.message.includes('AI safety')
+        ? error.message
+        : fallbackMessage;
+  const status = error instanceof z.ZodError ? 400 : 500;
+  return res.status(status).json({ error: message });
+}
 
 // ============================================================================
 // 1. REGIONS (INDIA-FIRST EXPANSION ARCHITECTURE)
@@ -390,12 +396,15 @@ const diseaseCheckSchema = z.object({
 apiRouter.post('/agritech/disease-check', aiLimiter, requireAuth, async (req, res) => {
   try {
     const data = diseaseCheckSchema.parse(req.body);
-    const cleanBase64 = data.imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const imgCheck = validateBase64Image(data.imageBase64, data.mimeType, 4 * 1024 * 1024);
+    if (!imgCheck.valid) {
+      return res.status(400).json({ error: imgCheck.reason || 'Invalid crop image file.' });
+    }
     const analysis = await analyzeCropImageWithGemini({
-      base64Data: cleanBase64,
+      base64Data: imgCheck.cleanBase64,
       mimeType: data.mimeType,
-      cropName: data.cropName,
-      regionName: data.regionName,
+      cropName: stripDangerousMarkup(data.cropName),
+      regionName: stripDangerousMarkup(data.regionName),
       language: data.language,
     });
     res.json({ analysis });
@@ -529,6 +538,21 @@ const createComplaintSchema = z.object({
 apiRouter.post('/civic/complaints', writeLimiter, requireAuth, async (req: AuthRequest, res) => {
   try {
     const data = createComplaintSchema.parse(req.body);
+    if (data.photoDataUrl) {
+      const mimeMatch = data.photoDataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,/);
+      if (!mimeMatch) {
+        return res.status(400).json({ error: 'Invalid photo format.' });
+      }
+      const imgCheck = validateBase64Image(
+        data.photoDataUrl,
+        mimeMatch[1] as 'image/jpeg' | 'image/png' | 'image/webp',
+        1_500_000
+      );
+      if (!imgCheck.valid) {
+        return res.status(400).json({ error: imgCheck.reason || 'Uploaded photo failed validation.' });
+      }
+    }
+
     const trackingId = `IND-CIV-${new Date().getFullYear()}-${Math.random()
       .toString(36)
       .slice(2, 7)
@@ -541,10 +565,10 @@ apiRouter.post('/civic/complaints', writeLimiter, requireAuth, async (req: AuthR
         userId: req.dbUser!.id,
         regionCode: data.regionCode,
         category: data.category,
-        title: data.title,
-        description: data.description,
-        locationWard: data.locationWard,
-        coordinates: data.coordinates ?? '',
+        title: stripDangerousMarkup(data.title),
+        description: stripDangerousMarkup(data.description),
+        locationWard: stripDangerousMarkup(data.locationWard),
+        coordinates: stripDangerousMarkup(data.coordinates ?? ''),
         photoDataUrl: data.photoDataUrl ?? '',
         status: 'Submitted',
         assignedDepartment: 'Central Citizen Facilitation Desk',
@@ -980,27 +1004,30 @@ const learnerProfileSchema = z.object({
 apiRouter.post('/skills/profile', writeLimiter, requireAuth, async (req: AuthRequest, res) => {
   try {
     const data = learnerProfileSchema.parse(req.body);
+    if (data.portfolioUrl && !isSafeHttpUrl(data.portfolioUrl)) {
+      return res.status(400).json({ error: 'Portfolio URL must be a valid public http(s) link.' });
+    }
     const [saved] = await db
       .insert(learnerProfiles)
       .values({
         userId: req.dbUser!.id,
         regionCode: data.regionCode,
-        headline: data.headline,
-        skills: data.skills,
-        education: data.education,
-        experienceSummary: data.experienceSummary,
-        portfolioUrl: data.portfolioUrl ?? '',
+        headline: stripDangerousMarkup(data.headline),
+        skills: data.skills.map(stripDangerousMarkup),
+        education: stripDangerousMarkup(data.education),
+        experienceSummary: stripDangerousMarkup(data.experienceSummary),
+        portfolioUrl: data.portfolioUrl ? data.portfolioUrl.trim() : '',
         assessmentScore: data.assessmentScore ?? 0,
       })
       .onConflictDoUpdate({
         target: learnerProfiles.userId,
         set: {
           regionCode: data.regionCode,
-          headline: data.headline,
-          skills: data.skills,
-          education: data.education,
-          experienceSummary: data.experienceSummary,
-          portfolioUrl: data.portfolioUrl ?? '',
+          headline: stripDangerousMarkup(data.headline),
+          skills: data.skills.map(stripDangerousMarkup),
+          education: stripDangerousMarkup(data.education),
+          experienceSummary: stripDangerousMarkup(data.experienceSummary),
+          portfolioUrl: data.portfolioUrl ? data.portfolioUrl.trim() : '',
           assessmentScore: data.assessmentScore ?? 0,
           updatedAt: new Date(),
         },
@@ -1415,7 +1442,7 @@ apiRouter.patch(
         action: 'ASSIGN_ROLE',
         resourceType: 'user',
         resourceId: String(targetId),
-        details: `Assigned role ${data.role} to user #${targetId}`,
+        details: `Assigned role ${data.role} to user #${targetId} (ipHash:${hashClientIp(req.ip)})`,
       });
 
       res.json({ user: updated });
@@ -1439,7 +1466,16 @@ const contactSchema = z.object({
 apiRouter.post('/contact', writeLimiter, async (req, res) => {
   try {
     const data = contactSchema.parse(req.body);
-    const [saved] = await db.insert(contactInquiries).values(data).returning();
+    const [saved] = await db
+      .insert(contactInquiries)
+      .values({
+        name: stripDangerousMarkup(data.name),
+        email: data.email.trim().toLowerCase(),
+        regionCode: data.regionCode,
+        sector: data.sector,
+        message: stripDangerousMarkup(data.message),
+      })
+      .returning();
     res.status(201).json({ inquiryId: saved.id, received: true });
   } catch (error) {
     handleRouteError(res, error, 'Failed to submit inquiry.');

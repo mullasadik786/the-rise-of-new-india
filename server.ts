@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './src/routes/api.ts';
+import { verifyMutationOrigin } from './src/lib/security.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,10 +20,59 @@ export async function createApp() {
 
   app.use(
     helmet({
-      contentSecurityPolicy: false,
+      contentSecurityPolicy: isProduction
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'", "'unsafe-inline'", 'https://apis.google.com'],
+              styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+              fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+              imgSrc: ["'self'", 'data:', 'https:'],
+              connectSrc: [
+                "'self'",
+                'https://*.googleapis.com',
+                'https://*.firebaseapp.com',
+                'https://identitytoolkit.googleapis.com',
+                'https://securetoken.googleapis.com',
+              ],
+              objectSrc: ["'none'"],
+              baseUri: ["'self'"],
+            },
+          }
+        : false,
       crossOriginEmbedderPolicy: false,
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     })
   );
+
+  // Additional hardened HTTP security headers
+  app.use((_req, res, next) => {
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
+    next();
+  });
+
+  // Strict CORS allowlisting (no wildcard on authenticated APIs)
+  app.use('/api', (req, res, next) => {
+    const origin = req.headers.origin;
+    const allowedOrigins = new Set<string>(['http://localhost:3000', 'http://127.0.0.1:3000']);
+    if (process.env.APP_URL) allowedOrigins.add(process.env.APP_URL.replace(/\/$/, ''));
+    const hostHeader = req.headers['x-forwarded-host'] || req.headers.host;
+    if (hostHeader) {
+      allowedOrigins.add(`https://${hostHeader}`);
+      allowedOrigins.add(`http://${hostHeader}`);
+    }
+
+    if (origin && allowedOrigins.has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+    }
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
+    }
+    return next();
+  });
 
   app.use(express.json({ limit: '6mb' }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
@@ -34,6 +84,7 @@ export async function createApp() {
     legacyHeaders: false,
   });
   app.use('/api', globalLimiter);
+  app.use('/api', verifyMutationOrigin);
 
   app.use('/api', apiRouter);
 

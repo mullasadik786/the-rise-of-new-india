@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { FileText, Store, TrendingUp } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { ResilientImage } from '../ResilientImage';
 
 interface MsmeStorefront {
   id: number;
@@ -261,25 +262,36 @@ export const MsmeDigitization: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi 
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-        <div>
-          <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
-            Module 03 · MSME Digital Transformation
-          </p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1">
-            Digital Storefronts, GST Invoicing, Inventory &amp; Export Readiness
-          </h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-2xl">
-            Notice: Business profiles and Udyam entries are self-declared unless verified through an authorized government API integration.
-          </p>
+      <div className="rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 grid grid-cols-1 lg:grid-cols-12">
+        <div className="lg:col-span-7 p-6 flex flex-col justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+              Module 03 · MSME Digital Transformation
+            </p>
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1">
+              Digital Storefronts, GST Invoicing, Inventory &amp; Export Readiness
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 max-w-2xl">
+              Notice: Business profiles and Udyam entries are self-declared unless verified through an authorized government API integration.
+            </p>
+          </div>
+          <div>
+            <button
+              type="button"
+              onClick={onOpenAi}
+              className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium whitespace-nowrap shrink-0 transition-colors"
+            >
+              Ask MSME Growth AI
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={onOpenAi}
-          className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium whitespace-nowrap shrink-0 transition-colors"
-        >
-          Ask MSME Growth AI
-        </button>
+        <div className="lg:col-span-5 h-52 lg:h-auto">
+          <ResilientImage
+            src="/src/assets/images/msme_export_studio_1795702770799.jpg"
+            alt="Indore MSME studio preparing Maheshwari handloom textiles and spices with digital inventory tracking"
+            className="w-full h-full object-cover"
+          />
+        </div>
       </div>
 
       {message && (
@@ -629,6 +641,89 @@ export const MsmeDigitization: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi 
                   Record Expense
                 </button>
               </form>
+            </div>
+          </div>
+
+          {myInvoices.length > 0 && (
+            <div className="p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                  Issued GST Invoices
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const escapeCsv = (val: string | number) => `"${String(val).replace(/"/g, '""')}"`;
+                    const rows = [
+                      ['InvoiceNumber', 'Customer', 'SubtotalINR', 'GstINR', 'TotalINR', 'Status', 'IssuedAt'],
+                      ...myInvoices.map((inv) => [
+                        inv.invoiceNumber,
+                        inv.customerName,
+                        inv.subtotalInr,
+                        inv.gstInr,
+                        inv.totalInr,
+                        inv.status,
+                        inv.issuedAt,
+                      ]),
+                    ];
+                    const csv = rows.map((r) => r.map(escapeCsv).join(',')).join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `msme-invoices-${selectedRegion.toLowerCase()}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  Export Invoices CSV
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500">
+                      <th className="py-2 pr-4 font-medium">Invoice #</th>
+                      <th className="py-2 pr-4 font-medium">Customer</th>
+                      <th className="py-2 pr-4 font-medium text-right">Subtotal</th>
+                      <th className="py-2 pr-4 font-medium text-right">GST</th>
+                      <th className="py-2 font-medium text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                    {myInvoices.map((inv) => (
+                      <tr key={inv.id} className="h-9">
+                        <td className="py-2 pr-4 font-mono">{inv.invoiceNumber}</td>
+                        <td className="py-2 pr-4">{inv.customerName}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums">₹{inv.subtotalInr.toLocaleString('en-IN')}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums">₹{inv.gstInr.toLocaleString('en-IN')}</td>
+                        <td className="py-2 text-right tabular-nums font-semibold">₹{inv.totalInr.toLocaleString('en-IN')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div className="p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              MSME Export-Readiness &amp; ONDC Learning Checklist (Informational)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-600 dark:text-slate-400">
+              <div className="p-3.5 rounded-lg bg-stone-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                <div className="font-semibold text-slate-900 dark:text-slate-100">1. Digital Catalog &amp; HSN Mapping</div>
+                <p>Standardize product SKUs, net weight/units, and GST HSN codes before onboarding onto ONDC seller apps.</p>
+              </div>
+              <div className="p-3.5 rounded-lg bg-stone-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                <div className="font-semibold text-slate-900 dark:text-slate-100">2. Official Portal Verification</div>
+                <p>Complete Udyam Registration &amp; DGFT Importer-Exporter Code (IEC) only via authorized Government of India portals.</p>
+              </div>
+              <div className="p-3.5 rounded-lg bg-stone-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                <div className="font-semibold text-slate-900 dark:text-slate-100">3. Packaging &amp; Logistics Traceability</div>
+                <p>Include batch dates, FSSAI/GI labeling where applicable, and insured parcel tracking from Pithampur/Indore hubs.</p>
+              </div>
             </div>
           </div>
         </div>

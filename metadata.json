@@ -2,5 +2,7 @@
   "name": "The Rise of New India",
   "description": "AI-powered regional growth, smart development, and civic innovation ecosystem starting with Indore and Madhya Pradesh across AgriTech, Smart Civic Governance, MSME Transformation, Skill Development, and Clean Urban Sustainability.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

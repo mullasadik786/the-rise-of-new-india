@@ -10,6 +10,7 @@ interface PublicComplaint {
   title: string;
   description: string;
   locationWard: string;
+  photoDataUrl?: string;
   status: string;
   assignedDepartment: string;
   resolutionNotes: string;
@@ -32,6 +33,8 @@ export const SmartCivicGovernance: React.FC<{ onOpenAi: () => void }> = ({ onOpe
   const { dbUser, selectedRegion, authFetch, loginWithGoogle } = useAuth();
   const [complaints, setComplaints] = useState<PublicComplaint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'resolved'>('all');
+  const [searchFilter, setSearchFilter] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -379,13 +382,39 @@ export const SmartCivicGovernance: React.FC<{ onOpenAi: () => void }> = ({ onOpe
 
       {/* Public Sanitized Complaint Registry */}
       <div className="p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
             Regional Civic Issue Ledger (Public Privacy-Protected View)
           </h3>
-          <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-            {complaints.length} records
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="search"
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              placeholder="Search ward or ID..."
+              className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950"
+            />
+            <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-800">
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'open', label: 'Active' },
+                { key: 'resolved', label: 'Resolved' },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.key as 'all' | 'open' | 'resolved')}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md ${
+                    statusFilter === tab.key
+                      ? 'bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100'
+                      : 'text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {loading ? (
@@ -396,31 +425,53 @@ export const SmartCivicGovernance: React.FC<{ onOpenAi: () => void }> = ({ onOpe
           </div>
         ) : (
           <div className="divide-y divide-slate-200 dark:divide-slate-800">
-            {complaints.map((c) => (
+            {complaints
+              .filter((c) => {
+                const isDone = c.status === 'Resolved' || c.status === 'Citizen Feedback';
+                if (statusFilter === 'open' && isDone) return false;
+                if (statusFilter === 'resolved' && !isDone) return false;
+                if (!searchFilter.trim()) return true;
+                const q = searchFilter.toLowerCase();
+                return (
+                  c.trackingId.toLowerCase().includes(q) ||
+                  c.title.toLowerCase().includes(q) ||
+                  c.locationWard.toLowerCase().includes(q)
+                );
+              })
+              .map((c) => (
               <div key={c.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                    <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
-                      {c.trackingId}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span>{c.category}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{c.locationWard}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-medium text-sky-700 dark:text-sky-400">{c.status}</span>
-                  </div>
-                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    {c.title}
-                  </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                    {c.description} · Assigned: {c.assignedDepartment}
-                  </p>
-                  {c.satisfactionRating && (
-                    <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                      Citizen Rating: {c.satisfactionRating}/5 — {c.feedbackText}
-                    </p>
+                <div className="flex items-start gap-3">
+                  {c.photoDataUrl && /^data:image\/(jpeg|png|webp);base64,/.test(c.photoDataUrl) && (
+                    <img
+                      src={c.photoDataUrl}
+                      alt={`Attachment for ${c.trackingId}`}
+                      className="w-16 h-16 rounded-lg object-cover border border-slate-200 dark:border-slate-800 shrink-0"
+                    />
                   )}
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
+                        {c.trackingId}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span>{c.category}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{c.locationWard}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="font-medium text-sky-700 dark:text-sky-400">{c.status}</span>
+                    </div>
+                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      {c.title}
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                      {c.description} · Assigned: {c.assignedDepartment}
+                    </p>
+                    {c.satisfactionRating && (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                        Citizen Rating: {c.satisfactionRating}/5 — {c.feedbackText}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
