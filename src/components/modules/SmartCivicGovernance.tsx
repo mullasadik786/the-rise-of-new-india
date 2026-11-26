@@ -57,6 +57,7 @@ export const SmartCivicGovernance: React.FC<{ onOpenAi: () => void }> = ({ onOpe
   const [feedbackTargetId, setFeedbackTargetId] = useState<number | null>(null);
   const [rating, setRating] = useState(5);
   const [feedbackText, setFeedbackText] = useState('');
+  const [locatingGps, setLocatingGps] = useState(false);
 
   const isOfficerOrAdmin =
     dbUser && ['super_admin', 'regional_admin', 'dept_officer'].includes(dbUser.role);
@@ -77,6 +78,26 @@ export const SmartCivicGovernance: React.FC<{ onOpenAi: () => void }> = ({ onOpe
   useEffect(() => {
     loadComplaints();
   }, [loadComplaints]);
+
+  const handleUseGps = () => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser.');
+      return;
+    }
+    setLocatingGps(true);
+    setError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoordinates(`${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+        setLocatingGps(false);
+      },
+      () => {
+        setError('Unable to read GPS location. Enter coordinates manually or allow location permission.');
+        setLocatingGps(false);
+      },
+      { timeout: 6000 }
+    );
+  };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -183,6 +204,18 @@ export const SmartCivicGovernance: React.FC<{ onOpenAi: () => void }> = ({ onOpe
     }
   };
 
+  const resolvedCount = complaints.filter(
+    (c) => c.status === 'Resolved' || c.status === 'Citizen Feedback'
+  ).length;
+  const ratedComplaints = complaints.filter((c) => typeof c.satisfactionRating === 'number');
+  const avgSatisfaction =
+    ratedComplaints.length > 0
+      ? (
+          ratedComplaints.reduce((acc, c) => acc + (c.satisfactionRating || 0), 0) /
+          ratedComplaints.length
+        ).toFixed(1)
+      : '—';
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
@@ -217,6 +250,32 @@ export const SmartCivicGovernance: React.FC<{ onOpenAi: () => void }> = ({ onOpe
         </div>
       )}
 
+      {/* Live Transparency KPI Strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <div className="text-xs text-slate-500 dark:text-slate-400">Total Logged</div>
+          <div className="text-2xl font-bold tabular-nums mt-1">{complaints.length}</div>
+        </div>
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <div className="text-xs text-slate-500 dark:text-slate-400">Active Issues</div>
+          <div className="text-2xl font-bold tabular-nums text-sky-700 dark:text-sky-400 mt-1">
+            {complaints.length - resolvedCount}
+          </div>
+        </div>
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <div className="text-xs text-slate-500 dark:text-slate-400">Resolved / Closed</div>
+          <div className="text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400 mt-1">
+            {resolvedCount}
+          </div>
+        </div>
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <div className="text-xs text-slate-500 dark:text-slate-400">Citizen Rating</div>
+          <div className="text-2xl font-bold tabular-nums mt-1">
+            {avgSatisfaction === '—' ? '—' : `${avgSatisfaction} / 5`}
+          </div>
+        </div>
+      </div>
+
       {/* Tracking Lookup + File Complaint */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div className="lg:col-span-2 p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
@@ -250,6 +309,27 @@ export const SmartCivicGovernance: React.FC<{ onOpenAi: () => void }> = ({ onOpe
               <div className="text-xs text-slate-500 dark:text-slate-400">
                 {trackedDetail.complaint.trackingId} · {trackedDetail.complaint.locationWard} ·{' '}
                 {trackedDetail.complaint.assignedDepartment}
+              </div>
+              {/* 6-Stage Workflow Progress Stepper */}
+              <div className="grid grid-cols-3 gap-1.5 pt-1">
+                {WORKFLOW_STAGES.map((stage, i) => {
+                  const activeIdx = WORKFLOW_STAGES.indexOf(
+                    trackedDetail.complaint.status as (typeof WORKFLOW_STAGES)[number]
+                  );
+                  const reached = i <= activeIdx;
+                  return (
+                    <div
+                      key={stage}
+                      className={`px-2 py-1 rounded text-[11px] font-medium text-center border ${
+                        reached
+                          ? 'bg-sky-700 text-white border-sky-700 dark:bg-sky-600 dark:border-sky-600'
+                          : 'bg-stone-50 dark:bg-slate-950 text-slate-500 border-slate-200 dark:border-slate-800'
+                      }`}
+                    >
+                      {i + 1}. {stage}
+                    </div>
+                  );
+                })}
               </div>
               <div className="space-y-2 pt-1">
                 {trackedDetail.timeline.map((step) => (
@@ -349,7 +429,7 @@ export const SmartCivicGovernance: React.FC<{ onOpenAi: () => void }> = ({ onOpe
               </label>
 
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2">
                   <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
                     <Upload className="w-3.5 h-3.5" aria-hidden="true" />
                     <span>{photoDataUrl ? 'Photo Attached' : 'Attach Photo'}</span>
@@ -365,8 +445,16 @@ export const SmartCivicGovernance: React.FC<{ onOpenAi: () => void }> = ({ onOpe
                     aria-label="Coordinates"
                     value={coordinates}
                     onChange={(e) => setCoordinates(e.target.value)}
-                    className="px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-mono w-40"
+                    className="px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-mono w-36"
                   />
+                  <button
+                    type="button"
+                    disabled={locatingGps}
+                    onClick={handleUseGps}
+                    className="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {locatingGps ? 'Locating...' : 'Use GPS'}
+                  </button>
                 </div>
                 <button
                   type="submit"

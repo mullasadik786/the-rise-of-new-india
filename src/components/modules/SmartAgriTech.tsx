@@ -521,6 +521,33 @@ export const SmartAgriTech: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi }) 
               ))}
             </div>
 
+            <div className="p-3 rounded-lg bg-stone-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 grid grid-cols-4 gap-2 text-[11px]">
+              <div>
+                <div className="text-slate-500">Nitrogen</div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">
+                  {Number(soilN) < 200 ? 'Low' : Number(soilN) > 400 ? 'High' : 'Optimal'}
+                </div>
+              </div>
+              <div>
+                <div className="text-slate-500">Phosphorus</div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">
+                  {Number(soilP) < 12 ? 'Low' : Number(soilP) > 35 ? 'High' : 'Optimal'}
+                </div>
+              </div>
+              <div>
+                <div className="text-slate-500">Potassium</div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">
+                  {Number(soilK) < 140 ? 'Low' : Number(soilK) > 340 ? 'High' : 'Optimal'}
+                </div>
+              </div>
+              <div>
+                <div className="text-slate-500">Soil pH Band</div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">
+                  {Number(soilPh) < 6.5 ? 'Acidic' : Number(soilPh) > 7.8 ? 'Alkaline' : 'Neutral'}
+                </div>
+              </div>
+            </div>
+
             <button
               type="submit"
               className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-emerald-600 text-white text-sm font-medium hover:bg-slate-800 dark:hover:bg-emerald-500 transition-colors"
@@ -604,11 +631,45 @@ export const SmartAgriTech: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi }) 
               <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
                 Crop Expense &amp; Profit Ledger
               </h3>
-              <div className="text-sm font-mono tabular-nums text-slate-700 dark:text-slate-300">
-                Projected Net Margin:{' '}
-                <span className={projectedNetProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-red-600 font-semibold'}>
-                  ₹{projectedNetProfit.toLocaleString('en-IN')}
-                </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="text-sm font-mono tabular-nums text-slate-700 dark:text-slate-300">
+                  Projected Net Margin:{' '}
+                  <span className={projectedNetProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-red-600 font-semibold'}>
+                    ₹{projectedNetProfit.toLocaleString('en-IN')}
+                  </span>
+                </div>
+                {crops.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+                      const rows = [
+                        ['Crop', 'Season', 'SowingDate', 'Acres', 'YieldQtl', 'ExpensesINR', 'RevenueINR', 'NetProfitINR'],
+                        ...crops.map((c) => [
+                          c.cropName,
+                          c.season,
+                          c.sowingDate,
+                          c.areaAcres,
+                          c.expectedYieldQuintals,
+                          c.expensesInr,
+                          c.revenueInr,
+                          c.revenueInr - c.expensesInr,
+                        ]),
+                      ];
+                      const csv = rows.map((r) => r.map(esc).join(',')).join('\n');
+                      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `agritech-crops-${selectedRegion}.csv`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    Export Ledger CSV
+                  </button>
+                )}
               </div>
             </div>
 

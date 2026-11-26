@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, Send, ShieldAlert, X } from 'lucide-react';
+import { Bot, Check, Copy, Send, ShieldAlert, Trash2, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { LANGUAGE_OPTIONS, SupportedLang } from '../lib/i18n';
 
@@ -18,6 +18,39 @@ interface AiAssistantDrawerProps {
   activeSector: 'General' | 'AgriTech' | 'Civic Governance' | 'MSME' | 'Skilling & Jobs' | 'Clean Urban';
 }
 
+const SECTOR_SAMPLE_PROMPTS: Record<AiAssistantDrawerProps['activeSector'], string[]> = {
+  General: [
+    'Summarize key civic, AgriTech, and MSME priorities for Indore district.',
+    'इंदौर में नागरिकों और छोटे व्यवसायों के लिए मुख्य डिजिटल सेवाएं क्या हैं?',
+    'How can a district expand its regional data ecosystem responsibly under DPDP 2023?',
+  ],
+  AgriTech: [
+    'What drip irrigation schedule suits Rabi wheat on black cotton soil near Indore?',
+    'सोयाबीन की फसल में पीला मोज़ेक रोग से बचाव के सुरक्षित और जैविक उपाय क्या हैं?',
+    'How should soil NPK readings guide organic compost planning in Malwa?',
+  ],
+  'Civic Governance': [
+    'How does ward complaint escalation work from Submitted to Citizen Feedback?',
+    'इंदौर में जलभराव या कचरा संग्रहण की शिकायत कैसे दर्ज और ट्रैक करें?',
+    'What metrics help municipal teams improve resolution turnaround time?',
+  ],
+  MSME: [
+    'इंदौर में छोटे MSME व्यवसाय के लिए डिजिटल बिलिंग और ONDC की शुरुआत कैसे करें?',
+    'How should Maheshwari handloom artisans standardize SKU catalogs and GST invoicing?',
+    'What export-readiness checklist items apply to Madhya Pradesh food processing units?',
+  ],
+  'Skilling & Jobs': [
+    'How can a final-year student in Madhya Pradesh build a portfolio for local tech jobs?',
+    'इंदौर IT पार्क में इंटर्नशिप और फुल-स्टैक रोल के लिए 4-सप्ताह की तैयारी कैसे करें?',
+    'Which digital manufacturing skills are most relevant for Pithampur industrial roles?',
+  ],
+  'Clean Urban': [
+    'How can residential wards improve wet/dry waste segregation above 95%?',
+    'शहरी क्षेत्रों में वर्षा जल संचयन (rainwater harvesting) के प्रभावी तरीके क्या हैं?',
+    'Explain how the weighted sustainability score tracks transit and air quality gains.',
+  ],
+};
+
 export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   isOpen,
   onClose,
@@ -29,12 +62,28 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<{ q: string; reply: AiReply }>>([]);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   React.useEffect(() => {
     setSector(activeSector);
   }, [activeSector]);
 
   if (!isOpen) return null;
+
+  const handleCopy = async (idx: number, reply: AiReply) => {
+    const text = [
+      reply.answer,
+      ...(reply.actionItems || []).map((a) => `- ${a}`),
+      reply.disclaimer,
+    ].join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 2000);
+    } catch {
+      // clipboard blocked in restricted context
+    }
+  };
 
   const handleAsk = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +115,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     }
   };
 
+  const samplePrompts = SECTOR_SAMPLE_PROMPTS[sector] || SECTOR_SAMPLE_PROMPTS.General;
+
   return (
     <div
       className="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-xs"
@@ -86,14 +137,27 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close AI Assistant"
-            className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {history.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setHistory([])}
+                aria-label="Clear Conversation"
+                title="Clear Conversation"
+                className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close AI Assistant"
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="px-6 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3 bg-stone-50 dark:bg-slate-950/50">
@@ -136,14 +200,10 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 Ask practical regional questions in English, Hindi, or Telugu.
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Example queries:
+                Suggested {sector} queries:
               </p>
               <div className="space-y-2">
-                {[
-                  'What irrigation schedule suits Rabi wheat on black cotton soil near Indore?',
-                  'इंदौर में छोटे MSME व्यवसाय के लिए डिजिटल बिलिंग और ONDC की शुरुआत कैसे करें?',
-                  'How can a final-year student in Madhya Pradesh build a portfolio for local tech jobs?',
-                ].map((sample) => (
+                {samplePrompts.map((sample) => (
                   <button
                     key={sample}
                     type="button"
@@ -163,8 +223,27 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 You: {item.q}
               </div>
               <div className="space-y-2.5 text-sm text-slate-700 dark:text-slate-200 bg-stone-50 dark:bg-slate-950 p-4 rounded-lg border border-slate-200 dark:border-slate-800">
-                <div className="text-xs font-medium text-amber-800 dark:text-amber-400">
-                  AI-Generated Response · {item.reply.language.toUpperCase()}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-amber-800 dark:text-amber-400">
+                    AI-Generated Response · {item.reply.language.toUpperCase()}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(idx, item.reply)}
+                    className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center gap-1"
+                  >
+                    {copiedIdx === idx ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
                 </div>
                 <p className="leading-relaxed whitespace-pre-line">{item.reply.answer}</p>
                 {item.reply.actionItems.length > 0 && (

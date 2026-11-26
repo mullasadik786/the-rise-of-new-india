@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Award, Briefcase, GraduationCap } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { ResilientImage } from '../ResilientImage';
 
 interface CourseItem {
   id: number;
@@ -29,7 +30,7 @@ interface OpportunityItem {
 }
 
 export const SkillEmployment: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi }) => {
-  const { dbUser, selectedRegion, authFetch, loginWithGoogle } = useAuth();
+  const { dbUser, selectedRegion, language, authFetch, loginWithGoogle } = useAuth();
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [opportunities, setOpportunities] = useState<OpportunityItem[]>([]);
   const [appliedIds, setAppliedIds] = useState<number[]>([]);
@@ -37,6 +38,8 @@ export const SkillEmployment: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi }
   const [filterMode, setFilterMode] = useState<'all' | 'free'>('all');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [roadmapBusy, setRoadmapBusy] = useState(false);
+  const [roadmap, setRoadmap] = useState<{ answer: string; actionItems: string[]; disclaimer: string } | null>(null);
 
   // Learner Profile & Resume Builder
   const [headline, setHeadline] = useState('Full-Stack Developer & Cloud Trainee');
@@ -163,30 +166,95 @@ export const SkillEmployment: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi }
     }
   };
 
+  const handleGenerateRoadmap = async () => {
+    setRoadmapBusy(true);
+    setError(null);
+    try {
+      const prompt = `Build a 6-week skilling and interview preparation roadmap for a learner in ${selectedRegion} with headline "${headline}", education "${education}", and current skills: ${skillsText}. Suggest practical portfolio projects and local regional job tracks.`;
+      const res = await authFetch('/api/ai/assistant', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: prompt,
+          sector: 'Skilling & Jobs',
+          regionCode: selectedRegion,
+          language,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not generate roadmap.');
+      setRoadmap(data.reply);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Roadmap generation failed.');
+    } finally {
+      setRoadmapBusy(false);
+    }
+  };
+
+  const learnerSkillTokens = skillsText
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+
   const filteredCourses = filterMode === 'free' ? courses.filter((c) => c.isFree) : courses;
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-        <div>
-          <p className="text-xs font-medium text-indigo-700 dark:text-indigo-400">
-            Module 04 · Education, Skill Development &amp; Employment
-          </p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1">
-            Regional Skilling Roadmaps, Resume Builder &amp; Verified Listings
-          </h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-2xl">
-            Every course and job listing explicitly discloses its source classification: Verified, External, or Sample.
-          </p>
+      <div className="rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 grid grid-cols-1 lg:grid-cols-12">
+        <div className="lg:col-span-7 p-6 flex flex-col justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium text-indigo-700 dark:text-indigo-400">
+              Module 04 · Education, Skill Development &amp; Employment
+            </p>
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1">
+              Regional Skilling Roadmaps, Resume Builder &amp; Verified Listings
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 max-w-2xl">
+              Every course and job listing explicitly discloses its source classification: Verified, External, or Sample.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              disabled={roadmapBusy}
+              onClick={handleGenerateRoadmap}
+              className="px-4 py-2 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white text-sm font-medium disabled:opacity-50 whitespace-nowrap shrink-0 transition-colors"
+            >
+              {roadmapBusy ? 'Building Roadmap...' : 'Generate AI Skilling Roadmap'}
+            </button>
+            <button
+              type="button"
+              onClick={onOpenAi}
+              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-sm font-medium whitespace-nowrap shrink-0"
+            >
+              Ask AI Career Coach
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={onOpenAi}
-          className="px-4 py-2 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white text-sm font-medium whitespace-nowrap shrink-0 transition-colors"
-        >
-          Ask AI Career Coach
-        </button>
+        <div className="lg:col-span-5 h-52 lg:h-auto">
+          <ResilientImage
+            src="/src/assets/images/sector_youth_skilling_1795701180707.jpg"
+            alt="Students and young professionals collaborating in a Madhya Pradesh skill development center"
+            className="w-full h-full object-cover"
+          />
+        </div>
       </div>
+
+      {roadmap && (
+        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 text-sm">
+          <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-400">
+            AI-Generated Personalized Learning &amp; Interview Roadmap
+          </div>
+          <p className="text-slate-700 dark:text-slate-200 leading-relaxed">{roadmap.answer}</p>
+          {roadmap.actionItems?.length > 0 && (
+            <ul className="list-disc pl-5 text-xs text-slate-600 dark:text-slate-300 space-y-1">
+              {roadmap.actionItems.map((step, i) => (
+                <li key={i}>{step}</li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-amber-800 dark:text-amber-400 pt-1">{roadmap.disclaimer}</p>
+        </div>
+      )}
 
       {message && (
         <div className="p-3.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-sm text-emerald-900 dark:text-emerald-200">
@@ -281,6 +349,11 @@ export const SkillEmployment: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi }
             <div className="divide-y divide-slate-200 dark:divide-slate-800">
               {opportunities.map((opp) => {
                 const applied = appliedIds.includes(opp.id);
+                const matchedSkills = opp.skillsRequired.filter((reqSkill) =>
+                  learnerSkillTokens.some(
+                    (tok) => reqSkill.toLowerCase().includes(tok) || tok.includes(reqSkill.toLowerCase())
+                  )
+                ).length;
                 return (
                   <div key={opp.id} className="py-3 first:pt-0 last:pb-0 space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -289,7 +362,10 @@ export const SkillEmployment: React.FC<{ onOpenAi: () => void }> = ({ onOpenAi }
                           <span className="font-semibold text-slate-800 dark:text-slate-200">
                             {opp.listingType} Listing
                           </span>{' '}
-                          · {opp.type} · <span className="tabular-nums">{opp.stipendOrSalary}</span>
+                          · {opp.type} · <span className="tabular-nums">{opp.stipendOrSalary}</span> ·{' '}
+                          <span className="tabular-nums font-medium text-indigo-700 dark:text-indigo-400">
+                            {matchedSkills}/{opp.skillsRequired.length} skill match
+                          </span>
                         </div>
                         <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                           {opp.title}

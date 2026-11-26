@@ -67,6 +67,8 @@ export const AnalyticsAdmin: React.FC = () => {
   } = useAuth();
   const [analytics, setAnalytics] = useState<AnalyticsPayload | null>(null);
   const [adminData, setAdminData] = useState<AdminOverview | null>(null);
+  const [briefingBusy, setBriefingBusy] = useState(false);
+  const [briefing, setBriefing] = useState<{ answer: string; actionItems: string[]; disclaimer: string } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,6 +98,32 @@ export const AnalyticsAdmin: React.FC = () => {
   useEffect(() => {
     loadAnalytics();
   }, [loadAnalytics]);
+
+  const handleGenerateBriefing = async () => {
+    if (!analytics) return;
+    setBriefingBusy(true);
+    setError(null);
+    try {
+      const c = analytics.liveDatabaseCounts;
+      const prompt = `Summarize the live regional development telemetry for ${analytics.regionCode}: ${c.registeredFarmers} farmers, ${c.cropRecordsLogged} crop records, ${c.civicComplaintsTotal} civic complaints (${c.resolutionRatePercent}% resolved), ${c.participatingMsmes} MSME storefronts, ${c.registeredLearners} learner profiles, ${c.activeOpportunities} opportunities, and ${c.sustainabilityReports} sustainability reports. Provide actionable regional governance priorities.`;
+      const res = await authFetch('/api/ai/assistant', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: prompt,
+          sector: 'General',
+          regionCode: selectedRegion,
+          language,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not generate regional briefing.');
+      setBriefing(data.reply);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Briefing generation failed.');
+    } finally {
+      setBriefingBusy(false);
+    }
+  };
 
   const handleExportCsv = () => {
     if (!analytics) return;
@@ -198,6 +226,11 @@ export const AnalyticsAdmin: React.FC = () => {
     }
   };
 
+  const maxCategoryCount = Math.max(
+    1,
+    ...(analytics?.complaintCategories?.map((c) => c.total) || [1])
+  );
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
@@ -209,15 +242,42 @@ export const AnalyticsAdmin: React.FC = () => {
             Regional Impact Dashboard &amp; RBAC Administration
           </h2>
         </div>
-        <button
-          type="button"
-          onClick={handleExportCsv}
-          className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2 whitespace-nowrap shrink-0"
-        >
-          <Download className="w-4 h-4" aria-hidden="true" />
-          <span>Export CSV Report</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            disabled={briefingBusy || !analytics}
+            onClick={handleGenerateBriefing}
+            className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-amber-600 text-white text-sm font-medium disabled:opacity-50 whitespace-nowrap shrink-0"
+          >
+            {briefingBusy ? 'Generating...' : 'AI Regional Briefing'}
+          </button>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2 whitespace-nowrap shrink-0"
+          >
+            <Download className="w-4 h-4" aria-hidden="true" />
+            <span>Export CSV Report</span>
+          </button>
+        </div>
       </div>
+
+      {briefing && (
+        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 text-sm">
+          <div className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+            AI Executive Regional Briefing ({selectedRegion.toUpperCase()})
+          </div>
+          <p className="text-slate-700 dark:text-slate-200 leading-relaxed">{briefing.answer}</p>
+          {briefing.actionItems?.length > 0 && (
+            <ul className="list-disc pl-5 text-xs text-slate-600 dark:text-slate-300 space-y-1">
+              {briefing.actionItems.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-slate-500 dark:text-slate-400">{briefing.disclaimer}</p>
+        </div>
+      )}
 
       {message && (
         <div className="p-3.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-sm text-emerald-900 dark:text-emerald-200">
@@ -259,36 +319,72 @@ export const AnalyticsAdmin: React.FC = () => {
             ))}
           </div>
 
-          {/* DEMO DATA Trend Chart */}
-          <div className="p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-amber-700 dark:text-amber-400" aria-hidden="true" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Live Civic Category Breakdown */}
+            <div className="p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                  Cross-Sector Participation Trend
+                  Civic Complaint Categories (Live DB)
                 </h3>
+                <span className="text-xs text-slate-500">PostgreSQL Live</span>
               </div>
-              <span className="text-xs font-medium text-amber-800 dark:text-amber-400">
-                {analytics.demoBenchmarks.label}
-              </span>
+              {analytics.complaintCategories.length === 0 ? (
+                <div className="text-sm text-slate-500 py-4">
+                  No civic complaints categorized in this district yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {analytics.complaintCategories.map((row) => (
+                    <div key={row.category} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{row.category}</span>
+                        <span className="font-mono tabular-nums text-slate-600 dark:text-slate-400">
+                          {row.total}
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                        <div
+                          className="h-full bg-sky-700 dark:bg-sky-500 rounded-full"
+                          style={{ width: `${Math.round((row.total / maxCategoryCount) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-6 gap-3 items-end h-44 pt-4">
-              {analytics.demoBenchmarks.monthlyParticipationTrend.map((pt) => {
-                const total = pt.agritech + pt.civic + pt.msme + pt.skilling + pt.urban;
-                const heightPct = Math.min(100, Math.round((total / 260) * 100));
-                return (
-                  <div key={pt.month} className="flex flex-col items-center gap-2 h-full justify-end">
-                    <span className="text-xs font-mono tabular-nums text-slate-600 dark:text-slate-400">
-                      {total}
-                    </span>
-                    <div className="w-full max-w-[44px] rounded-t-md bg-slate-900 dark:bg-amber-600/90 transition-all" style={{ height: `${heightPct}%` }} />
-                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      {pt.month}
-                    </span>
-                  </div>
-                );
-              })}
+            {/* DEMO DATA Trend Chart */}
+            <div className="p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-amber-700 dark:text-amber-400" aria-hidden="true" />
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                    Cross-Sector Participation Trend
+                  </h3>
+                </div>
+                <span className="text-xs font-medium text-amber-800 dark:text-amber-400">
+                  {analytics.demoBenchmarks.label}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-6 gap-3 items-end h-44 pt-4">
+                {analytics.demoBenchmarks.monthlyParticipationTrend.map((pt) => {
+                  const total = pt.agritech + pt.civic + pt.msme + pt.skilling + pt.urban;
+                  const heightPct = Math.min(100, Math.round((total / 260) * 100));
+                  return (
+                    <div key={pt.month} className="flex flex-col items-center gap-2 h-full justify-end">
+                      <span className="text-xs font-mono tabular-nums text-slate-600 dark:text-slate-400">
+                        {total}
+                      </span>
+                      <div className="w-full max-w-[44px] rounded-t-md bg-slate-900 dark:bg-amber-600/90 transition-all" style={{ height: `${heightPct}%` }} />
+                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        {pt.month}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
